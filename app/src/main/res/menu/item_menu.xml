@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <item android:id="@+id/nav_eshop"
+        android:title="@string/euro_shop"
+        android:icon="@drawable/eshp"
+        />
+    <item android:id="@+id/nav_exchange"
+        android:title="@string/exchange"
+        android:icon="@drawable/exc"
+        />
+    <item android:id="@+id/nav_home"
+        android:title="Home"
+        android:icon="@drawable/earth"
+        />
+    <item android:id="@+id/nav_launchpad"
+        android:title="@string/launchpads"
+        android:icon="@drawable/laun"
+        />
+    <item android:id="@+id/nav_wallet"
+        android:title="@string/wallet"
+        android:icon="@drawable/wallet"
+        />
+</menu>
