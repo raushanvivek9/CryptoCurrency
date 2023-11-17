@@ -33,6 +33,9 @@ public class MainActivity extends AppCompatActivity {
                         break;
                     case R.id.nav_exchange:
                         fragment = new Exchange_Fragment();
+                        Bundle bundle = new Bundle();
+                        bundle.putString("sorrtValue", "MarcketCap");
+                        fragment.setArguments(bundle);
                         break;
                     case R.id.nav_launchpad:
                         fragment = new Launchpad_Fragment();

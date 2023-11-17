@@ -15,6 +15,15 @@ public class Crypto_Model {
     private double percent_change_60d;
     private double percent_change_90d;
     private int id;
+    private double volume_24h;
+
+    public double getVolume_24h() {
+        return volume_24h;
+    }
+
+    public void setVolume_24h(double volume_24h) {
+        this.volume_24h = volume_24h;
+    }
 
     public int getId() {
         return id;

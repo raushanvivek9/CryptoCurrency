@@ -1,44 +1,40 @@
 package com.example.crypto;
 
-import android.graphics.Color;
+import android.app.ProgressDialog;
 import android.os.Bundle;
 
 import androidx.appcompat.widget.SearchView;
 import androidx.appcompat.widget.Toolbar;
 import androidx.core.content.ContextCompat;
 import androidx.fragment.app.Fragment;
+import androidx.fragment.app.FragmentTransaction;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
 
-import com.android.volley.AuthFailureError;
+import com.android.volley.DefaultRetryPolicy;
 import com.android.volley.Request;
 import com.android.volley.RequestQueue;
 import com.android.volley.Response;
 import com.android.volley.VolleyError;
 import com.android.volley.toolbox.JsonObjectRequest;
 import com.android.volley.toolbox.Volley;
-import com.jjoe64.graphview.series.DataPoint;
 
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.Currency;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
 
 public class Exchange_Fragment extends Fragment {
     private View exchangeView;
@@ -47,8 +43,12 @@ public class Exchange_Fragment extends Fragment {
     RecyclerView crypto_list;
     SearchView search_bar;
     Toolbar toolbar;
+    Button filter_btwn;
+    private JsonObjectRequest jsonObjectRequest;
     private ArrayList<Crypto_Model> crypto_modelArrayList;
     private Crypto_Adapter crypto_adapter;
+    String sortbyValue = "MarcketCap";
+    ProgressDialog loadingbar;
 
 
     @Override
@@ -62,10 +62,15 @@ public class Exchange_Fragment extends Fragment {
         nft_view_layout = exchangeView.findViewById(R.id.nft_view_layout);
         crypto_view = exchangeView.findViewById(R.id.crypto_view);
         nft_view = exchangeView.findViewById(R.id.nft_view);
+        filter_btwn = exchangeView.findViewById(R.id.filter_btwn);
         crypto_list = exchangeView.findViewById(R.id.crypto_list);
         search_bar = exchangeView.findViewById(R.id.search_bar);
+        loadingbar = new ProgressDialog(getActivity());
         crypto_modelArrayList = new ArrayList<>();
         crypto_adapter = new Crypto_Adapter(crypto_modelArrayList, getContext());
+        //get data from previous fragment (Home)
+        Bundle bundle = getArguments();
+        sortbyValue = bundle.getString("sorrtValue");
 
 
         nft_view.setOnClickListener(new View.OnClickListener() {
@@ -87,6 +92,19 @@ public class Exchange_Fragment extends Fragment {
 
             }
         });
+        filter_btwn.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                FilterFragment filterFragment = new FilterFragment();
+//                    sending data
+//                work_label_1.setArguments(bundle);
+                //changing trans
+                FragmentTransaction fragmentTransaction = getFragmentManager().beginTransaction();
+                fragmentTransaction.replace(R.id.fragment_container, filterFragment);
+                fragmentTransaction.addToBackStack(null);
+                fragmentTransaction.commit();
+            }
+        });
 
         search_bar.setOnQueryTextListener(new SearchView.OnQueryTextListener() {
             @Override
@@ -105,7 +123,7 @@ public class Exchange_Fragment extends Fragment {
 
         crypto_list.setLayoutManager(new LinearLayoutManager(getContext()));
         crypto_list.setAdapter(crypto_adapter);
-        getCurrencyData();
+        getCurrencyData(sortbyValue);
 
 
         return exchangeView;
@@ -125,11 +143,11 @@ public class Exchange_Fragment extends Fragment {
         }
     }
 
-    private void getCurrencyData() {
+    private void getCurrencyData(String sortbyValue1) {
         RequestQueue requestQueue1 = Volley.newRequestQueue(getContext());
 
         String url = "https://pro-api.coinmarketcap.com/v1/cryptocurrency/listings/latest" + "?CMC_PRO_API_KEY=" + "91af7cca-6f37-4000-a7b9-bff76ef87c65";
-        JsonObjectRequest jsonObjectRequest = new JsonObjectRequest(Request.Method.GET, url, null, new Response.Listener<JSONObject>() {
+        jsonObjectRequest = new JsonObjectRequest(Request.Method.GET, url, null, new Response.Listener<JSONObject>() {
             @Override
             public void onResponse(JSONObject response) {
                 try {
@@ -154,6 +172,7 @@ public class Exchange_Fragment extends Fragment {
                             crypto_model.setPercent_change_30d(currencyData.getJSONObject("quote").getJSONObject("USD").getDouble("percent_change_30d"));
                             crypto_model.setPercent_change_60d(currencyData.getJSONObject("quote").getJSONObject("USD").getDouble("percent_change_60d"));
                             crypto_model.setPercent_change_90d(currencyData.getJSONObject("quote").getJSONObject("USD").getDouble("percent_change_90d"));
+                            crypto_model.setVolume_24h(currencyData.getJSONObject("quote").getJSONObject("USD").getDouble("volume_24h"));
 
 
                         } else {
@@ -187,11 +206,18 @@ public class Exchange_Fragment extends Fragment {
 //
 
                         requestQueue1.add(jsonObjectRequest1);
-                        //Initial sory by marcket cap
-//        sortDataByMarketCap();
-                        sortDataByPrice();
+
+                        if (sortbyValue1.equals("Price")) {
+                            sortDataByPrice();
+                        } else if (sortbyValue1.equals("Volume_24h")) {
+                            sortDataByVolume();
+                        } else {
+                            sortDataByMarketCap();
+                        }
                         // Update the adapter with the sorted dat
                         crypto_modelArrayList.add(crypto_model);
+                        loadingbar.dismiss();
+                        crypto_adapter.notifyDataSetChanged();
 
                     }
 
@@ -206,14 +232,45 @@ public class Exchange_Fragment extends Fragment {
         }, new Response.ErrorListener() {
             @Override
             public void onErrorResponse(VolleyError error) {
-                Toast.makeText(getContext(), "Fail to gt the data" + error.getMessage(), Toast.LENGTH_SHORT).show();
+                if (error.networkResponse != null && error.networkResponse.statusCode == 429) {
+                    loadingbar.setMessage("Fetching Details....");
+                    loadingbar.setCanceledOnTouchOutside(false);
+                    loadingbar.show();
+                    // Retry the request after some time
+                    retryRequestWithExponentialBackoff(jsonObjectRequest);
+                } else {
+                    // Handle other types of errors
+                    Toast.makeText(getContext(), "Error: " + error.getMessage(), Toast.LENGTH_SHORT).show();
+                }
 
             }
         });
-//        RequestQueue requestQueue= Volley.newRequestQueue(getContext());
-        requestQueue1.add(jsonObjectRequest);
 
+        RequestQueue requestQueue = Volley.newRequestQueue(getContext());
+        requestQueue.add(jsonObjectRequest);
+    }
 
+    private void sortDataByVolume() {
+        Collections.sort(crypto_modelArrayList, new Comparator<Crypto_Model>() {
+            @Override
+            public int compare(Crypto_Model crypto_model, Crypto_Model t1) {
+                return Double.compare(t1.getVolume_24h(), crypto_model.getVolume_24h());
+            }
+        });
+    }
+
+    private void retryRequestWithExponentialBackoff(JsonObjectRequest jsonObjectRequest) {
+        final int initialDelayMillis = 2000;
+
+        // Retry the request after the specified delay
+        jsonObjectRequest.setRetryPolicy(new DefaultRetryPolicy(
+                initialDelayMillis,
+                DefaultRetryPolicy.DEFAULT_MAX_RETRIES,
+                DefaultRetryPolicy.DEFAULT_BACKOFF_MULT
+        ));
+
+        // Add the request to the Volley request queue again
+        Volley.newRequestQueue(getContext()).add(jsonObjectRequest);
     }
 
     private void sortDataByPrice() {
